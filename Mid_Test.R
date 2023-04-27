@@ -57,3 +57,33 @@ ggplot(top_20, aes(x = reorder_within(word, tf_idf, time), y = tf_idf, fill = ti
   facet_wrap(~time, scales = "free", ncol = 2) +
   scale_x_reordered() +
   labs(x = "단어", y = "빈도")
+
+# ---------------------------------------------------------------------------------------------------------------------------------
+# 문제4. 감정사전을 적용하여, 텍스트의 감정 경향을 분석하기
+
+# [감정사전 CSV 불러오기]
+dic <- read_csv(paste(dir, "/knu_sentiment_lexicon.csv", sep = ""))
+# [단어 감정 구분]
+dic %>% filter(!str_detect(word, "[^가-힣]")) %>% arrange(word)
+dic %>% 
+  mutate(sentiment = ifelse(polarity >= 1, "pos", ifelse(polarity <= -1, "neg", "neu"))) %>% 
+  count(sentiment)
+# [뉴스 CSV 불러오기]
+news_csv <- read_csv(paste(dir, "/news_data.csv", sep = ""))
+# [뉴스 데이터 토큰화]
+news_txt <- news_csv %>%
+  unnest_tokens(input = value, output = word, token = "words", drop = F)
+# [감정 점수 부여]
+news_txt <- news_txt %>%
+  left_join(dic, by = "word") %>%
+  mutate(polarity = ifelse(is.na(polarity), 0, polarity))
+# [감정 분류]
+news_txt <- news_txt %>%
+  mutate(sentiment = ifelse(polarity == 1, "pos", ifelse(polarity == -1, "neg", "neu")))
+# [그래프화]
+freq_news <- news_txt %>% count(sentiment) %>% mutate(ratio = n/sum(n) * 100)
+ggplot(freq_news, aes(x = sentiment, y = n, fill = sentiment)) +
+  geom_col() + geom_text(aes(label = n, vjust = -0.3)) +
+  scale_x_discrete(limits = c("pos", "neu", "neg"))
+
+

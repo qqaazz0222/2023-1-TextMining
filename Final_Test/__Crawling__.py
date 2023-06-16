@@ -37,4 +37,4 @@ for articleNo in range(1, lastPageNo*10, 10):
         ws[f'A{rowNo}'] = title
         rowNo += 1
 # [ 엑셀 파일 저장 ]
-wb.save('./크롤링데이터.xlsx')
+wb.save('./ainews.xlsx')

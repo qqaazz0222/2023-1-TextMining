@@ -7,6 +7,7 @@
 library(rstudioapi)
 library(dplyr)
 library(readr)
+library(stringr)
 library(ggplot2)
 # ---------------------------------------------------------------------------------------------------------------------------------
 
@@ -15,7 +16,7 @@ dir <- dirname(rstudioapi::getActiveDocumentContext()$path)
 # ---------------------------------------------------------------------------------------------------------------------------------
 
 # 데이터 불러오기
-data <- read_csv(paste(dir, "/ainews.csv", sep = ""))
+ai_news <- readLines(paste(dir, "/ainews.txt", sep = ""), encoding = "UTF-8")
 
-# 텍스트 전처리
-preData <- data %>% str_replace_all("")
+# 텍스트 전처리 (불필요 문자 제거, 연속된 공백 제거, tibble 구조로 변경)
+new <- ai_news %>% str_replace_all("[^가-힣]", replacement = " ") %>% str_squish() %>% as_tibble()

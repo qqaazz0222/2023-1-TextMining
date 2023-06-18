@@ -151,3 +151,96 @@ ggraph(graph_apple, layout = "fr") +
   geom_edge_link(color = "#3C129C", alpha = 0.5) + 
   geom_node_text(aes(label = name), repel = T, size = 5, family = "ng") +
   theme_graph()
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------
+# 토픽 모델링
+google <- read_csv(paste(dir, "/google_keynote.csv", sep = ""))
+apple <- read_csv(paste(dir, "/apple_wwdc.csv", sep = ""))
+
+raw_google <- google %>%
+  mutate(raw = str_replace_all(raw, "[^가-힣]", " "),
+         raw = str_squish(raw)) %>%
+  distinct(raw, .keep_all = T) %>%
+  filter(str_count(raw, boundary("word")) >= 3)
+raw_google <- raw_google %>%
+  unnest_tokens(input = raw, output = word,
+                token = extractNoun, drop = F) %>%
+  filter(str_count(word) > 1) %>%
+  group_by(id) %>%
+  distinct(word, .keep_all = T) %>%
+  ungroup() %>%
+  select(id, word)
+count_google <- raw_google %>%
+  add_count(word) %>%
+  filter(n <= 200) %>%
+  select(-n)
+count_google_doc <- count_google %>%
+  count(id,word, sort = T)
+
+raw_apple <- apple %>%
+  mutate(raw = str_replace_all(raw, "[^가-힣]", " "),
+         raw = str_squish(raw)) %>%
+  distinct(raw, .keep_all = T) %>%
+  filter(str_count(raw, boundary("word")) >= 3)
+raw_apple <- raw_apple %>%
+  unnest_tokens(input = raw, output = word,
+                token = extractNoun, drop = F) %>%
+  filter(str_count(word) > 1) %>%
+  group_by(id) %>%
+  distinct(word, .keep_all = T) %>%
+  ungroup() %>%
+  select(id, word)
+count_apple <- raw_apple %>%
+  add_count(word) %>%
+  filter(n <= 200) %>%
+  select(-n)
+count_apple_doc <- count_apple %>%
+  count(id,word, sort = T)
+
+dtm_google <- count_google_doc %>%
+  cast_dtm(document = id, term = word, value = n)
+dtm_apple <- count_apple_doc %>%
+  cast_dtm(document = id, term = word, value = n)
+
+lda_google <- LDA(dtm_google, k = 8, method = "Gibbs",
+                  control = list(seed = 1234))
+lda_apple <- LDA(dtm_apple, k = 8, method = "Gibbs",
+                 control = list(seed = 1234))
+
+topic_google <- tidy(lda_google, matrix = "beta")
+topic_apple <- tidy(lda_apple, matrix = "beta")
+
+topic_google %>% arrange(-beta)
+topic_apple %>% arrange(-beta)
+# ---------------------------------------------------------------------------------------------------------------------------------
+doc_topic <- tidy(lda_google, matrix = "gamma")
+doc_topic %>% filter(document == 1) %>% summarise(sum_gamma = sum(gamma))
+doc_class <- doc_topic %>% group_by(document) %>% slice_max(gamma, n = 1)
+doc_class$document <- as.integer(doc_class$document)
+doc_class %>% arrange(document)
+
+new_google <- google %>% left_join(doc_class, by = c("id" = "document"))
+new_google <- new_google %>% na.omit()
+top_terms <- topic_google %>% group_by(topic) %>% slice_max(beta, n = 1, with_ties = F) %>% summarise(term = paste(term, collapse = ", "))
+count_topic <- new_google %>% count(topic)
+count_topic_word <- count_topic %>% left_join(top_terms, by = "topic") %>% mutate(topic_name = paste("TOPIC", topic))
+ggplot(count_topic_word, aes(x = reorder(topic_name, n), y = n, fill = topic_name)) + geom_col(show.legend = F) +
+  coord_flip() + geom_text(aes(label = n), hjust = -0.2) + geom_text(aes(label = term), hjust = 1.04, col = "white", fontface = "bold") +
+  scale_y_continuous(limits = c(0, 200)) + labs(x = NULL)
+# ---------------------------------------------------------------------------------------------------------------------------------
+
+doc_topic <- tidy(lda_apple, matrix = "gamma")
+doc_topic %>% filter(document == 1) %>% summarise(sum_gamma = sum(gamma))
+doc_class <- doc_topic %>% group_by(document) %>% slice_max(gamma, n = 1)
+doc_class$document <- as.integer(doc_class$document)
+doc_class %>% arrange(document)
+
+new_apple <- apple %>% left_join(doc_class, by = c("id" = "document"))
+new_apple <- new_apple %>% na.omit()
+top_terms <- topic_apple %>% group_by(topic) %>% slice_max(beta, n = 1, with_ties = F) %>% summarise(term = paste(term, collapse = ", "))
+count_topic <- new_apple %>% count(topic)
+count_topic_word <- count_topic %>% left_join(top_terms, by = "topic") %>% mutate(topic_name = paste("TOPIC", topic))
+ggplot(count_topic_word, aes(x = reorder(topic_name, n), y = n, fill = topic_name)) + geom_col(show.legend = F) +
+  coord_flip() + geom_text(aes(label = n), hjust = -0.2) + geom_text(aes(label = term), hjust = 1.04, col = "white", fontface = "bold") +
+  scale_y_continuous(limits = c(0, 200)) + labs(x = NULL)

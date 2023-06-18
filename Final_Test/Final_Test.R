@@ -57,3 +57,15 @@ ggplot(head(top_20_apple), aes(x = reorder(word, n), y= n)) +
   geom_text(aes(label = n), hjust = -0.1) +
   labs(x = NULL) +
   theme(text = element_text(family = "ng"))
+
+word_google %>% ggplot(aes(label = word, size = n, col = n)) +
+  geom_text_wordcloud(seed = 1234, family = "bhs") +
+  scale_radius(limits = c(3, NA), range = c(3, 30)) +
+  scale_color_gradient(low = "#4285F4", high = "#FBBD05") +
+  theme_minimal()
+
+word_apple %>% ggplot(aes(label = word, size = n, col = n)) +
+  geom_text_wordcloud(seed = 1234, family = "bhs") +
+  scale_radius(limits = c(3, NA), range = c(3, 30)) +
+  scale_color_gradient(low = "#FFACFB", high = "#3C129C") +
+  theme_minimal()

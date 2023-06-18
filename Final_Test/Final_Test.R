@@ -96,3 +96,58 @@ ggplot(top10, aes(x = reorder_within(word, tf_idf, company), y = tf_idf, fill = 
   facet_wrap(~company, scales = "free", ncol = 2) +
   scale_x_reordered() +
   labs(x = NULL)
+
+# ---------------------------------------------------------------------------------------------------------------------------------
+# 의미망 분석
+google <- read_csv(paste(dir, "/google_keynote.csv", sep = ""))
+apple <- read_csv(paste(dir, "/apple_wwdc.csv", sep = ""))
+
+# 토큰화 및 품사 분리
+raw_google <- google %>% select(raw) %>% mutate(raw = str_replace_all(raw, "[^가-힣]", " "), raw = str_squish(raw), id = row_number())
+raw_apple <- apple %>% select(raw) %>% mutate(raw = str_replace_all(raw, "[^가-힣]", " "), raw = str_squish(raw), id = row_number())
+raw_google_pos <- raw_google %>% unnest_tokens(input = raw, output = word, token = SimplePos22, drop = F)
+raw_google_pos %>% select(word, raw)
+raw_apple_pos <- raw_apple %>% unnest_tokens(input = raw, output = word, token = SimplePos22, drop = F)
+raw_apple_pos %>% select(word, raw)
+
+# 품사 추출
+noun_google = raw_google_pos%>% filter(str_detect(word, "/n")) %>% 
+  mutate(word = str_remove(word, "/.*$"))
+noun_google %>% select(word, raw)
+noun_apple = raw_apple_pos%>% filter(str_detect(word, "/n")) %>% 
+  mutate(word = str_remove(word, "/.*$"))
+noun_apple %>% select(word, raw)
+pvpa_google = raw_google_pos %>% filter(str_detect(word, "/pa|/pv")) %>% 
+  mutate(word = str_replace(word, "/.*$", "다"))
+pvpa_google %>% select(word, raw)
+pvpa_apple = raw_apple_pos %>% filter(str_detect(word, "/pa|/pv")) %>% 
+  mutate(word = str_replace(word, "/.*$", "다"))
+pvpa_apple %>% select(word, raw)
+
+# 결합
+combine_google = bind_rows(noun_google, pvpa_google) %>% filter(str_count(word) >= 2) %>% arrange(id)
+combine_google %>% select(word, raw)
+combine_apple = bind_rows(noun_apple, pvpa_apple) %>% filter(str_count(word) >= 2) %>% arrange(id)
+combine_apple %>% select(word, raw)
+
+# 단어 동시 출현 빈도 분석
+pair_google <- combine_google %>% pairwise_count(item = word, feature = id, sort = T)
+pair_apple <- combine_apple %>% pairwise_count(item = word, feature = id, sort = T)
+
+# 동시 출현 네트워크
+graph_google <- pair_google %>% filter(n>=5) %>% as_tbl_graph()
+graph_apple <- pair_apple %>% filter(n>=6) %>% as_tbl_graph()
+graph_google
+graph_apple
+
+set.seed(1234)
+ggraph(graph_google, layout = "fr") +
+  geom_node_point(color = "#4285F4", size = 5) + 
+  geom_edge_link(color = "#FBBD05", alpha = 0.5) + 
+  geom_node_text(aes(label = name), repel = T, size = 5, family = "ng") +
+  theme_graph()
+ggraph(graph_apple, layout = "fr") +
+  geom_node_point(color = "#FFACFB", size = 5) + 
+  geom_edge_link(color = "#3C129C", alpha = 0.5) + 
+  geom_node_text(aes(label = name), repel = T, size = 5, family = "ng") +
+  theme_graph()

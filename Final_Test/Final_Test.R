@@ -69,3 +69,30 @@ word_apple %>% ggplot(aes(label = word, size = n, col = n)) +
   scale_radius(limits = c(3, NA), range = c(3, 30)) +
   scale_color_gradient(low = "#FFACFB", high = "#3C129C") +
   theme_minimal()
+
+# ---------------------------------------------------------------------------------------------------------------------------------
+# 오즈비 분석
+google <- readLines(paste(dir, "/google_keynote.txt", sep = ""), encoding = "UTF-8") %>% as_tibble() %>% mutate(company = "google")
+apple <- readLines(paste(dir, "/apple_wwdc.txt", sep = ""), encoding = "UTF-8") %>% as_tibble() %>% mutate(company = "apple")
+bind_speeches <- bind_rows(google, apple) %>% select(company, value)
+speeches <- bind_speeches %>% mutate(value = str_replace_all(value, "[^가-힣]", " "), value = str_squish(value))
+speeches <- speeches %>%
+  unnest_tokens(input = value, output = word, token = extractNoun)
+freq <- speeches %>%
+  count(company, word) %>%
+  filter(str_count(word)>1)
+freq_wide <- freq %>% pivot_wider(names_from = company, values_from = n, values_fill = list(n=0))
+freq_wide <- freq_wide %>% mutate(ratio_google = ((google+1)/(sum(google+1))), ratio_apple = ((apple+1)/(sum(apple+1))))
+freq_wide <- freq_wide %>% mutate(odds_ratio = ratio_google/ratio_apple)
+freq_wide %>% arrange(-odds_ratio)
+
+freq <- freq %>% bind_tf_idf(term = word, document = company, n = n) %>%
+  arrange(-tf_idf)
+top10 <- freq %>% group_by(company) %>% slice_max(tf_idf, n = 10, with_ties = F)
+top10$company <- factor(top10$company, levels = c("google", "apple"))
+ggplot(top10, aes(x = reorder_within(word, tf_idf, company), y = tf_idf, fill = company)) +
+  geom_col(show.legend = F) +
+  coord_flip() +
+  facet_wrap(~company, scales = "free", ncol = 2) +
+  scale_x_reordered() +
+  labs(x = NULL)
